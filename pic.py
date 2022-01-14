@@ -67,10 +67,13 @@ def pic(ap0):
             np.hstack((yp[8], yp[14:])),
             np.hstack((zp[8], zp[14:])),
             ls='-', color='red')
+    data=str(datetime.datetime.now().strftime("%Y-%m-%d %H %M"))
     if out_pic_dic:
-        if (os.path.exists(out_pic_dic) == False):
-            os.makedirs(out_pic_dic)
-    plt.savefig(out_pic_dic+"/"+str(datetime.datetime.now().strftime("%Y-%m-%d%H,%M,%S"))+".jpg")
+        if (os.path.exists(out_pic_dic+"/"+data) == False):
+            os.makedirs(out_pic_dic+"/"+data)
+            plt.savefig(out_pic_dic+"/"+data+"/"+str(datetime.datetime.now().strftime("%S"))+".jpg")
+
+
 if __name__ == '__main__':
     if is_out_pic_example:
         print("事例代码")
