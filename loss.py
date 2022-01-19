@@ -1,7 +1,9 @@
 import tensorflow as tf
 import numpy as np
 def MPJPE(y_actual,y_pred):
-    return tf.reduce_mean(tf.norm(y_actual,y_pred))
+    print("y_actual",y_actual)
+    print("y_pred",y_pred)
+    return tf.reduce_mean(tf.norm(y_actual-y_pred,axis=len(y_pred.shape) - 1))
 
 
 def p_mpjpe(predicted, target):

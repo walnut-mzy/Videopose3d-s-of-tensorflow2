@@ -9,4 +9,4 @@ loss_l="MPJPE"
 out_pic_dic="./outputjpg"
 is_out_pic_example=True
 epoch=100
-batch_size=32
+batch_size=1

@@ -1,23 +1,61 @@
-from model import model
 import tensorflow as tf
+physical_devices = tf.config.experimental.list_physical_devices("GPU")
+if len(physical_devices) > 0:
+    tf.config.experimental.set_memory_growth(physical_devices[0],True)
+    logical_devices = tf.config.list_logical_devices("CPU")
+from model import model
 import numpy as np
 import hashlib
-from tensorflow.keras import losses, optimizers,initializers
+from tensorflow.keras import losses, optimizers,initializers,metrics
 from setting import modelpath,subjects_train,subjects_test,architecture,data_2d_path,data_3d_path,output,loss_l,batch_size,epoch
 from amsgrad import AMSGrad
 from loss import MPJPE,p_mpjpe
 from process.h36m_dataset import Human36mDataset
 from process.camera import world_to_camera,normalize_screen_coordinates
-from data import data_process, deterministic_random
+from data import data_process, deterministic_random,data_process1
 import datetime
 import os
-optimizer=AMSGrad(learning_rate=0.01, beta1=0.9, beta2=0.99, epsilon=1e-8)
-loss="MPJPE"
+from tqdm import tqdm
+print(tf.executing_eagerly())
+#optimizer=AMSGrad(learning_rate=0.01, beta1=0.9, beta2=0.99, epsilon=1e-8)
+optimizer=tf.keras.optimizers.Adam(learning_rate=0.001)
+loss=MPJPE
 if loss_l=="p_mpjpe":
     loss=p_mpjpe
 
+acc_meter=tf.metrics.CategoricalAccuracy()
+@tf.function
+def train_one_step(x,y):
+    """
+    一次迭代过程
+    """
+    # 求loss
+    with tf.GradientTape() as tape:
+        predictions = model(x)
+        acc_meter.update_state(y_true=y, y_pred=predictions)
+        loss1 = loss(y,predictions)
+    # 求梯度
+    grad = tape.gradient(loss1,  model.trainable_variables)
+    optimizer.apply_gradients(zip(grad, model.trainable_variables))
+    return loss1
 
+# cpus = tf.config.experimental.list_physical_devices(device_type='CPU')
+# print(gpus)
+# if gpus:
+#     gpu0 = gpus[0] #如果有多个GPU，仅使用第0个GPU
+#     tf.config.set_visible_devices([gpu0], "GPU")
+#     tf.config.experimental.set_memory_growth(gpu0, True) #设置GPU显存用量按需使用
+#     # 或者也可以设置GPU显存为固定使用量(例如：4G)
+#     #tf.config.experimental.set_virtual_device_configuration(gpu0,
+#     #    [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=4096)])
 
+# @tf.function
+# def test_acc():
+#     for x1, y1 in test_dataset:
+#         pred = model(x1)  # 前向计算
+#         acc_meter1.update_state(y_true=y1, y_pred=pred)  # 更新准确率统计
+#     print("测试集正确率为：",acc_meter1.result())
+#     acc_meter1.reset_states()
 if __name__ == '__main__':
 
     model.compile(
@@ -140,10 +178,24 @@ if __name__ == '__main__':
 
     cameras_valid, poses_valid, poses_valid_2d = fetch(subjects_test, None)
     filter_widths = [int(x) for x in architecture.split(',')]
-    print(type(poses_valid))
-    print(type(poses_valid_2d))
+    # print(np.array(poses_valid).shape)
+    # print(np.array(poses_valid_2d).shape)
     poses_valid_2d=data_process(poses_valid_2d)
-    poses_valid = data_process(poses_valid)
+    poses_valid = data_process1(poses_valid)
+    poses_valid=tf.convert_to_tensor(poses_valid)
+    poses_valid_2d=tf.convert_to_tensor(poses_valid_2d)
+    dataest = tf.data.Dataset.from_tensor_slices((poses_valid_2d, poses_valid))
+    dataest = dataest.shuffle(buffer_size=10000).prefetch(tf.data.experimental.AUTOTUNE).repeat(
+        1).batch(batch_size)
+    # for epochs in range(epoch):
+    #     # 使用tqdm提示训练进度
+    #     with tqdm(total=2345/batch_size,desc='Epoch {}/{}'.format(epochs, epoch)) as pbar:
+    #         # 每个epoch训练settings.STEPS_PER_EPOCH次
+    #         for x, y in  dataest:
+    #             print(x,y)
+    #             loss2 = train_one_step(x, y)
+    #             pbar.set_postfix(loss='%.4f' % float(loss2), acc=float(acc_meter.result()))
+    #             pbar.update(1)
     model.fit(poses_valid_2d,
               poses_valid,
               batch_size=batch_size,
